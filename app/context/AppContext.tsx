@@ -1,99 +1,144 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const AppContext = createContext<any>(null);
 
 export function AppWrapper({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<any[]>([]);
   const [user, setUser] = useState<any>(null);
-  const [wallets, setWallets] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [wallets, setWallets] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Load from LocalStorage
   useEffect(() => {
-    const savedUsers = localStorage.getItem("ep_users");
-    const savedCurrentUser = localStorage.getItem("ep_current_user");
-    const savedWallets = localStorage.getItem("ep_wallets");
-    const savedTransactions = localStorage.getItem("ep_transactions");
+    const loadSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+        fetchAppData(session.user.id);
+      }
+      setLoading(false);
+    };
+    loadSession();
 
-    if (savedUsers) setUsers(JSON.parse(savedUsers));
-    if (savedCurrentUser) setUser(JSON.parse(savedCurrentUser));
-    
-    if (savedWallets) {
-      setWallets(JSON.parse(savedWallets));
-    } else {
-      setWallets([{ id: 1, name: "Main Bank", balance: 0, type: "Bank", color: "bg-indigo-600" }]);
-    }
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setUser(session.user);
+        fetchAppData(session.user.id);
+      } else {
+        setUser(null);
+        setTransactions([]);
+        setWallets([]);
+        setBudgets([]);
+      }
+    });
 
-    if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
-    setLoading(false);
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
-  // Sync to LocalStorage
-  useEffect(() => {
-    if (!loading) {
-      localStorage.setItem("ep_users", JSON.stringify(users));
-      localStorage.setItem("ep_current_user", JSON.stringify(user));
-      localStorage.setItem("ep_wallets", JSON.stringify(wallets));
-      localStorage.setItem("ep_transactions", JSON.stringify(transactions));
-    }
-  }, [users, user, wallets, transactions, loading]);
+  const fetchAppData = async (userId: string) => {
+    const [txResponse, walletResponse, budgetResponse] = await Promise.all([
+      supabase.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false }),
+      supabase.from('wallets').select('*').eq('user_id', userId),
+      supabase.from('budgets').select('*').eq('user_id', userId)
+    ]);
 
-  const addTransaction = (newTx: any) => {
-  // Add to transactions first
-  setTransactions((prev: any[]) => {
-    if (prev.find(t => t.id === newTx.id)) return prev;
-    return [newTx, ...prev];
-  });
-  
-  setWallets((prevWallets: any[]) => prevWallets.map((w: any) => {
-    if (w.name === newTx.wallet) {
-      // Use Number() to ensure we are adding numbers, not strings
-      // and avoid any floor/ceil functions.
-      const currentBalance = Number(w.balance);
-      const transactionAmount = Number(newTx.amount);
-      const newBalance = currentBalance + transactionAmount;
-      
-      return { 
-        ...w, 
-        balance: parseFloat(newBalance.toFixed(2)) 
-      };
-    }
-    return w;
-  }));
-};
-  const deleteTransaction = (id: number) => {
-    const txToDelete = transactions.find((t) => t.id === id);
-    if (!txToDelete) return;
-
-    setWallets((prevWallets) => prevWallets.map((w) => {
-      if (w.name === txToDelete.wallet) {
-        // To undo a transaction, we SUBTRACT the amount exactly as it was added
-        const revertedBalance = Number(w.balance) - Number(txToDelete.amount);
-        return { ...w, balance: Number(revertedBalance.toFixed(2)) };
-      }
-      return w;
-    }));
-    setTransactions(prev => prev.filter((t) => t.id !== id));
+    if (txResponse.data) setTransactions(txResponse.data);
+    if (walletResponse.data) setWallets(walletResponse.data);
+    if (budgetResponse.data) setBudgets(budgetResponse.data);
   };
 
-  const registerUser = (newUser: any) => setUsers((prev) => [...prev, newUser]);
-  const addWallet = (newWallet: any) => setWallets((prev) => [...prev, newWallet]);
-  const logout = () => { setUser(null); localStorage.removeItem("ep_current_user"); };
+  const addTransaction = async (newTx: any) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([{ ...newTx, user_id: user.id }])
+      .select();
+
+    if (!error && data) {
+      setTransactions((prev) => [data[0], ...prev]);
+    }
+  };
+
+  // --- DELETE TRANSACTION ---
+  const deleteTransaction = async (id: string) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (!error) {
+      setTransactions((prev) => prev.filter((tx) => tx.id !== id));
+    } else {
+      console.error("Error deleting transaction:", error.message);
+      alert("Could not delete transaction.");
+    }
+  };
+
+  const addWallet = async (newWallet: any) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('wallets')
+      .insert([{ ...newWallet, user_id: user.id }])
+      .select();
+
+    if (!error && data) {
+      setWallets((prev) => [...prev, data[0]]);
+    }
+  };
+
+  const updateBudget = async (category: string, limit: number) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('budgets')
+      .upsert(
+        { category, limit_amount: limit, user_id: user.id }, 
+        { onConflict: 'user_id,category' }
+      )
+      .select();
+
+    if (!error && data) {
+      setBudgets(prev => {
+        const filtered = prev.filter(b => b.category !== category);
+        return [...filtered, data[0]];
+      });
+    }
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setTransactions([]);
+    setWallets([]);
+    setBudgets([]);
+  };
 
   return (
     <AppContext.Provider value={{ 
-      user, setUser, users, registerUser, wallets, addWallet, 
-      transactions, addTransaction, deleteTransaction, loading, logout 
+      user, 
+      setUser, 
+      transactions, 
+      wallets, 
+      budgets,
+      addTransaction, 
+      deleteTransaction, // Successfully added to the export
+      addWallet, 
+      updateBudget, 
+      logout, 
+      loading 
     }}>
       {children}
     </AppContext.Provider>
   );
 }
 
-export function useAppContext() {
-  const context = useContext(AppContext);
-  if (!context) throw new Error("useAppContext must be used within an AppWrapper");
-  return context;
-}
+export const useAppContext = () => useContext(AppContext);

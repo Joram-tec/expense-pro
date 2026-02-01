@@ -1,56 +1,113 @@
 "use client";
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAppContext } from '@/app/context/AppContext';
 import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
 
-export default function Register() {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export default function RegisterPage() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { registerUser, users } = useAppContext();
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.password) return alert("Please fill all fields");
+    setLoading(true);
+    
+    // Create the user and store the name in user_metadata
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { 
+          full_name: name // This is where the name is stored in Supabase
+        } 
+      }
+    });
 
-    // Check if user already exists
-    const exists = users.find((u: any) => u.email === form.email);
-    if (exists) return alert("Email already registered!");
+    setLoading(false);
 
-    registerUser(form);
-    alert("Account created successfully!");
-    router.push('/auth/login');
+    if (error) {
+      alert(error.message);
+    } else {
+      alert("Registration successful!");
+      // If auto-confirm is on, we can go to dashboard. If not, go to login.
+      router.push('/dashboard');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-6">
-      <div className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100">
-        <Link href="/" className="text-indigo-600 text-sm font-bold mb-6 inline-block">← Back</Link>
-        <h2 className="text-3xl font-bold mb-2 text-slate-900">Create Account</h2>
-        <p className="text-slate-500 mb-8 text-sm">Join ExpensePro to master your finances.</p>
-        
-        <form onSubmit={handleRegister} className="space-y-4">
-          <input 
-            type="text" placeholder="Full Name" required
-            className="w-full p-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-indigo-500" 
-            onChange={(e)=>setForm({...form, name: e.target.value})} 
-          />
-          <input 
-            type="email" placeholder="Email Address" required
-            className="w-full p-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-indigo-500" 
-            onChange={(e)=>setForm({...form, email: e.target.value})} 
-          />
-          <input 
-            type="password" placeholder="Password" required
-            className="w-full p-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-indigo-500" 
-            onChange={(e)=>setForm({...form, password: e.target.value})} 
-          />
-          <button type="submit" className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
-            Complete
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center p-6">
+      <div className="max-w-md w-full mx-auto bg-white p-10 rounded-[3rem] shadow-xl border-2 border-slate-100">
+        <header className="text-center mb-10">
+          <h1 className="text-3xl font-black text-slate-900">Create Account</h1>
+          <p className="text-slate-500 font-bold mt-2">Start managing your wealth</p>
+        </header>
+
+        <form onSubmit={handleRegister} className="space-y-5">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-900 uppercase ml-2 tracking-widest">Full Name</label>
+            <input 
+              type="text" 
+              className="w-full p-5 rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-bold outline-none focus:border-indigo-600 transition-all placeholder:text-slate-300"
+              placeholder="John Doe"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-900 uppercase ml-2 tracking-widest">Email Address</label>
+            <input 
+              type="email" 
+              className="w-full p-5 rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-bold outline-none focus:border-indigo-600 transition-all placeholder:text-slate-300"
+              placeholder="john@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-900 uppercase ml-2 tracking-widest">Password</label>
+            <div className="relative">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                className="w-full p-5 rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-bold outline-none focus:border-indigo-600 transition-all placeholder:text-slate-300 pr-14"
+                placeholder="Min. 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-xl p-2 hover:bg-slate-50 rounded-xl transition-colors"
+              >
+                {showPassword ? "👁️" : "🙈"}
+              </button>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className={`w-full py-5 bg-indigo-600 text-white font-black rounded-2xl text-lg shadow-xl shadow-indigo-100 transform active:scale-95 transition-all mt-4 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {loading ? "Creating Account..." : "Create Account"}
           </button>
         </form>
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Already have an account? <Link href="/auth/login" className="text-indigo-600 font-bold">Sign In</Link>
+
+        <p className="text-center mt-8 text-slate-500 font-bold">
+          Already a member? <Link href="/auth/login" className="text-indigo-600 font-black underline">Log In</Link>
         </p>
       </div>
     </div>

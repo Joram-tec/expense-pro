@@ -1,63 +1,100 @@
 "use client";
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAppContext } from '@/app/context/AppContext';
 import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
 
-export default function Login() {
-  const router = useRouter();
-  const { users, setUser } = useAppContext();
+// Initialize the Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setLoading(true);
 
-    const foundUser = users.find((u: any) => u.email === email && u.password === password);
-    
-    if (foundUser) {
-      setUser(foundUser);
-      router.push('/dashboard');
+    // Authenticate with Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      alert("Login failed: " + error.message);
     } else {
-      setError("Incorrect email or password. Please try again.");
+      // Supabase manages the session cookie automatically.
+      // Your AppContext will pick up the new session and provide user data.
+      router.push('/dashboard');
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100">
-        <h2 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h2>
-        <p className="text-slate-500 mb-8 text-sm">Please enter your details to sign in.</p>
-        
-        {error && (
-          <div className="mb-6 p-4 bg-rose-50 text-rose-600 text-sm font-medium rounded-2xl border border-rose-100 animate-pulse">
-            {error}
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center p-6">
+      <div className="max-w-md w-full mx-auto bg-white p-10 rounded-[3rem] shadow-xl border-2 border-slate-100">
+        <header className="text-center mb-10">
+          <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-4xl mx-auto mb-4 shadow-lg shadow-indigo-100">
+            💰
           </div>
-        )}
+          <h1 className="text-3xl font-black text-slate-900">Welcome Back</h1>
+          <p className="text-slate-500 font-bold mt-2">Log in to your account</p>
+        </header>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <input 
-            type="email" placeholder="Email" required
-            className="w-full p-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-indigo-500" 
-            onChange={(e)=>setEmail(e.target.value)} 
-          />
-          <input 
-            type="password" placeholder="Password" required
-            className="w-full p-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-indigo-500" 
-            onChange={(e)=>setPassword(e.target.value)} 
-          />
-          
-          <button type="submit" className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
-            Login
-          </button>
-          
-          <div className="flex justify-between items-center text-xs font-bold mt-6 px-1">
-            <Link href="/auth/forgot" className="text-indigo-600 hover:text-indigo-800 transition">Forgot Password?</Link>
-            <Link href="/auth/register" className="text-slate-400 hover:text-slate-600 transition underline">Create Account</Link>
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-900 uppercase ml-2 tracking-widest">Email Address</label>
+            <input 
+              type="email" 
+              className="w-full p-5 rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-bold outline-none focus:border-indigo-600 transition-all placeholder:text-slate-300"
+              placeholder="name@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-900 uppercase ml-2 tracking-widest">Password</label>
+            <div className="relative">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                className="w-full p-5 rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-bold outline-none focus:border-indigo-600 transition-all placeholder:text-slate-300 pr-14"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-xl p-2 hover:bg-slate-50 rounded-xl transition-colors"
+              >
+                {showPassword ? "👁️" : "🙈"}
+              </button>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className={`w-full py-5 bg-indigo-600 text-white font-black rounded-2xl text-lg shadow-xl shadow-indigo-100 transform active:scale-95 transition-all mt-4 ${loading ? 'opacity-50' : ''}`}
+          >
+            {loading ? "Signing In..." : "Sign In"}
+          </button>
         </form>
+
+        <p className="text-center mt-8 text-slate-500 font-bold">
+          Don't have an account? <Link href="/auth/register" className="text-indigo-600 font-black underline">Sign Up</Link>
+        </p>
       </div>
     </div>
   );

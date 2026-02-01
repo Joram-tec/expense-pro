@@ -1,113 +1,176 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/app/context/AppContext';
 import Link from 'next/link';
 
 export default function AddTransactionPage() {
   const router = useRouter();
-  const { wallets, addTransaction } = useAppContext();
-  
+  const { addTransaction, wallets, user } = useAppContext();
+
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('Food');
-  const [type, setType] = useState('Expense');
-  const [selectedWallet, setSelectedWallet] = useState(wallets[0]?.name || '');
+  const [category, setCategory] = useState(''); 
+  const [walletId, setWalletId] = useState('');
+  const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  // 1. Convert exactly what is in the input box to a float
-  // This ensures 40000.00 stays 40000.00
-  const rawValue = parseFloat(amount); 
-  
-  if (isNaN(rawValue) || rawValue <= 0) {
-    alert("Please enter a valid amount");
-    return;
-  }
+  // 1. Separate category lists for each type
+  const expenseCategories = ["Food", "Transport", "Rent", "Shopping", "Entertainment", "Health", "Utilities", "Gift"];
+  const incomeCategories = ["Salary", "Freelance", "Investment", "Gift", "Bonus", "Sale", "Refund"];
 
-  // 2. Assign sign WITHOUT any subtractions or rounding
-  const finalAmount = type === 'Expense' ? -rawValue : rawValue;
+  // 2. Clear category when switching type so user doesn't have an "Income" category on an "Expense"
+  useEffect(() => {
+    setCategory(''); 
+  }, [type]);
 
-  const newTx = {
-    id: Date.now(),
-    amount: finalAmount, 
-    category,
-    wallet: selectedWallet,
-    date: new Date().toISOString(),
-    type
+  useEffect(() => {
+    if (wallets.length > 0 && !walletId) setWalletId(wallets[0].id);
+  }, [wallets, walletId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !amount || !walletId) return;
+
+    setIsSaving(true);
+    const newTransaction = {
+      amount: type === 'expense' ? -Math.abs(Number(amount)) : Math.abs(Number(amount)),
+      category: category.trim() || "Other",
+      wallet_id: walletId,
+      date: new Date(date).toISOString(),
+      type,
+      user_id: user.id 
+    };
+
+    await addTransaction(newTransaction);
+    router.push('/dashboard');
   };
 
-  addTransaction(newTx);
-  router.push('/dashboard');
-};
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      <header className="p-6 bg-white border-b flex items-center gap-4">
-        <Link href="/dashboard" className="text-2xl text-slate-400">←</Link>
-        <h1 className="text-xl font-bold text-slate-900">Add Transaction</h1>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* VISIBLE HEADER */}
+      <header className="p-6 bg-white border-b border-slate-200 flex items-center gap-4 sticky top-0 z-30 shadow-sm">
+        <Link 
+          href="/dashboard" 
+          className="w-10 h-10 flex items-center justify-center bg-slate-900 text-white rounded-xl shadow-lg active:scale-95 transition-all"
+        >
+          <span className="text-xl font-bold">←</span>
+        </Link>
+        <h1 className="text-xl font-black text-slate-900">
+          Add {type === 'expense' ? 'Expense' : 'Income'}
+        </h1>
       </header>
 
-      <main className="p-6 max-w-md mx-auto">
+      <main className="flex-1 p-6 max-w-md mx-auto w-full pb-44"> 
+        
+        {/* Toggle Switch */}
+        <div className="flex bg-slate-200 p-1.5 rounded-2xl mb-8 shadow-inner">
+          <button 
+            type="button" 
+            onClick={() => setType('expense')} 
+            className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase transition-all ${
+              type === 'expense' ? 'bg-white text-rose-500 shadow-md' : 'text-slate-500'
+            }`}
+          >
+            Expense
+          </button>
+          <button 
+            type="button" 
+            onClick={() => setType('income')} 
+            className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase transition-all ${
+              type === 'income' ? 'bg-white text-emerald-500 shadow-md' : 'text-slate-500'
+            }`}
+          >
+            Income
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 text-center">
-            <p className="text-sm font-medium text-slate-400 uppercase mb-2">Amount</p>
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-3xl font-bold text-slate-900">$</span>
+          
+          {/* DATE FIELD */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Date</label>
+            <div className="bg-white rounded-2xl border-2 border-slate-100 p-1">
               <input 
-                type="number" 
-                step="0.01"
-                placeholder="0.00"
-                className="text-5xl font-black text-slate-900 w-full outline-none text-center"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                autoFocus
+                type="date" 
+                className="w-full p-4 bg-transparent text-slate-900 font-bold outline-none"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
               />
             </div>
           </div>
 
-          <div className="flex bg-slate-200 p-1 rounded-2xl">
-            {['Expense', 'Income'].map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className={`flex-1 py-3 rounded-xl font-bold transition-all ${
-                  type === t ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500'
-                }`}
+          {/* AMOUNT FIELD */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Amount</label>
+            <div className="bg-white rounded-2xl border-2 border-slate-100 p-1 flex items-center px-4">
+              <span className="text-slate-400 font-bold">$</span>
+              <input 
+                type="number" 
+                step="0.01"
+                placeholder="0.00"
+                className="w-full p-4 bg-transparent text-slate-900 font-bold outline-none"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          {/* DYNAMIC CATEGORY FIELD */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+              {type === 'expense' ? 'Expense Category' : 'Income Category'}
+            </label>
+            <div className="relative bg-white rounded-2xl border-2 border-slate-100 p-1">
+              <input 
+                list="dynamic-categories"
+                className="w-full p-4 bg-transparent text-slate-900 font-bold outline-none"
+                value={category}
+                placeholder="Pick or type custom..."
+                onChange={(e) => setCategory(e.target.value)}
+                required
+              />
+              <datalist id="dynamic-categories">
+                {/* 3. Logic to switch categories based on type */}
+                {type === 'expense' 
+                  ? expenseCategories.map((opt) => <option key={opt} value={opt} />)
+                  : incomeCategories.map((opt) => <option key={opt} value={opt} />)
+                }
+              </datalist>
+            </div>
+          </div>
+
+          {/* WALLET SELECT */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Wallet</label>
+            <div className="relative bg-white rounded-2xl border-2 border-slate-100 p-1">
+              <select 
+                className="w-full p-4 bg-transparent text-slate-900 font-bold outline-none appearance-none"
+                value={walletId}
+                onChange={(e) => setWalletId(e.target.value)}
+                required
               >
-                {t}
-              </button>
-            ))}
+                {wallets.map((w: any) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+              <span className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">▼</span>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 ml-2">Category</label>
-            <select 
-              className="w-full p-4 rounded-2xl bg-white border border-slate-100 outline-none"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+          <div className="pt-6">
+            <button 
+              type="submit" 
+              disabled={isSaving}
+              className={`w-full py-6 text-white font-black rounded-[2rem] text-xl shadow-2xl active:scale-95 transition-all ${
+                isSaving ? 'bg-slate-300' : (type === 'expense' ? 'bg-rose-500 shadow-rose-200' : 'bg-emerald-500 shadow-emerald-200')
+              }`}
             >
-              <option>Food</option><option>Transport</option><option>Shopping</option>
-              <option>Entertainment</option><option>Housing</option><option>Salary</option><option>Other</option>
-            </select>
+              {isSaving ? "Saving..." : `Confirm ${type}`}
+            </button>
           </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 ml-2">Wallet</label>
-            <select 
-              className="w-full p-4 rounded-2xl bg-white border border-slate-100 outline-none"
-              value={selectedWallet}
-              onChange={(e) => setSelectedWallet(e.target.value)}
-            >
-              {wallets.map((w: any) => (
-                <option key={w.id} value={w.name}>{w.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <button type="submit" className="w-full py-5 bg-indigo-600 text-white font-bold rounded-[2rem] text-lg shadow-xl shadow-indigo-100">
-            Save Transaction
-          </button>
         </form>
       </main>
     </div>
