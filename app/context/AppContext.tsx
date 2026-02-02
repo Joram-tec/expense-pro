@@ -67,11 +67,8 @@ export function AppWrapper({ children }: { children: React.ReactNode }) {
 
       const walletToUpdate = wallets.find(w => w.id === transaction.wallet_id);
       if (walletToUpdate) {
-        // Precise math to avoid floating point errors
         const newBalance = Math.round((Number(walletToUpdate.balance) + Number(transaction.amount)) * 100) / 100;
-
         await supabase.from('wallets').update({ balance: newBalance }).eq('id', transaction.wallet_id);
-
         setWallets(prev => prev.map(w => 
           w.id === transaction.wallet_id ? { ...w, balance: newBalance } : w
         ));
@@ -113,9 +110,29 @@ export function AppWrapper({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  // --- NEW RESET LOGIC ---
+  const resetAccountData = async () => {
+    if (!user) return;
+    try {
+      // 1. Delete all user data from tables
+      await Promise.all([
+        supabase.from('transactions').delete().eq('user_id', user.id),
+        supabase.from('wallets').delete().eq('user_id', user.id),
+        supabase.from('budgets').delete().eq('user_id', user.id),
+      ]);
+      
+      // 2. Clear local state and session
+      await logout();
+      return true;
+    } catch (error) {
+      console.error("Error resetting data:", error);
+      return false;
+    }
+  };
+
   return (
     <AppContext.Provider value={{ 
-      user, transactions, wallets, budgets, addTransaction, deleteTransaction, addWallet, logout, loading 
+      user, setUser, transactions, wallets, budgets, addTransaction, deleteTransaction, addWallet, logout, loading, resetAccountData 
     }}>
       {children}
     </AppContext.Provider>

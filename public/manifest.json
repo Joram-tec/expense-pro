@@ -1,10 +1,11 @@
 {
-  "name": "Wealth Tracker",
-  "short_name": "Wealth",
+  "name": "Expense Pro",
+  "short_name": "ExpensePro",
+  "description": "Professional personal finance tracking",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#6366f1",
+  "theme_color": "#4f46e5",
   "icons": [
     {
       "src": "/icon-192x192.png",

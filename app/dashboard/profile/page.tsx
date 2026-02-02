@@ -5,7 +5,7 @@ import { useAppContext } from '@/app/context/AppContext';
 import Link from 'next/link';
 
 export default function ProfilePage() {
-  const { user, setUser, logout, loading } = useAppContext();
+  const { user, setUser, logout, loading, resetAccountData } = useAppContext();
   const router = useRouter();
   
   const [isEditing, setIsEditing] = useState(false);
@@ -13,12 +13,11 @@ export default function ProfilePage() {
   const [notifStatus, setNotifStatus] = useState<string>("");
 
   useEffect(() => {
-    if (user?.name) {
-      setNewName(user.name);
+    if (user?.user_metadata?.full_name || user?.name) {
+      setNewName(user.user_metadata?.full_name || user.name);
     }
   }, [user]);
 
-  // Handle Notification Permission
   const requestPermission = async () => {
     if (!('Notification' in window)) {
       setNotifStatus("Not supported");
@@ -71,10 +70,16 @@ export default function ProfilePage() {
     link.click();
   };
 
-  const handleResetApp = () => {
-    if (confirm("Are you sure? This will delete ALL transactions and wallets forever.")) {
-      localStorage.clear();
-      window.location.href = "/";
+  // --- FIXED RESET LOGIC ---
+  const handleResetApp = async () => {
+    if (confirm("Are you sure? This will delete ALL transactions and wallets forever from the database.")) {
+      const success = await resetAccountData();
+      if (success) {
+        localStorage.clear();
+        window.location.href = "/";
+      } else {
+        alert("Reset failed. Please check your connection.");
+      }
     }
   };
 
@@ -85,16 +90,14 @@ export default function ProfilePage() {
       </header>
 
       <main className="p-6 max-w-md mx-auto flex flex-col items-center">
-        {/* Profile Image */}
         <div className="relative mb-6">
           <div className="w-32 h-32 rounded-[2.5rem] bg-indigo-100 border-4 border-white shadow-xl overflow-hidden flex items-center justify-center text-4xl">
-            {user.name?.charAt(0) || "U"}
+            {(user.user_metadata?.full_name || user.name || "U").charAt(0)}
           </div>
           <div className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2 rounded-xl shadow-lg border-2 border-white">📷</div>
         </div>
 
         <div className="w-full bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6">
-          {/* User Details */}
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-400 px-1">Full Name</label>
             {isEditing ? (
@@ -109,7 +112,7 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="flex justify-between items-center mt-1">
-                <p className="text-lg font-bold text-slate-900">{user.name}</p>
+                <p className="text-lg font-bold text-slate-900">{user.user_metadata?.full_name || user.name}</p>
                 <button onClick={() => setIsEditing(true)} className="text-indigo-600 text-xs font-bold hover:underline">Edit Name</button>
               </div>
             )}
@@ -120,7 +123,6 @@ export default function ProfilePage() {
             <p className="text-slate-600 font-medium mt-1">{user.email}</p>
           </div>
 
-          {/* NEW: Notifications Section */}
           <div className="pt-4 border-t">
              <p className="text-[10px] uppercase font-bold text-slate-400 px-1 mb-2">Preferences</p>
              <button 
@@ -135,7 +137,6 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {/* Data Management Section */}
           <div className="pt-4 space-y-3 border-t">
             <p className="text-[10px] uppercase font-bold text-slate-400 px-1 mb-2">Data Management</p>
             

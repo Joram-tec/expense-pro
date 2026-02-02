@@ -1,5 +1,5 @@
 import '@/app/globals.css';
-import { Plus_Jakarta_Sans } from 'next/font/google'; // Changed from Inter
+import { Plus_Jakarta_Sans } from 'next/font/google'; 
 import { AppWrapper } from '@/app/context/AppContext';
 
 const jakarta = Plus_Jakarta_Sans({ 
@@ -10,9 +10,10 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata = {
   title: 'Expense Pro',
   description: 'Professional personal finance tracking and analysis',
-  // Removed manifest: '/manifest.json' to stop the 404 error
+  manifest: '/manifest.json', // Re-enabled for PWA installation
   icons: {
     icon: '/favicon.ico',
+    apple: '/icon-192x192.png', // Important for iOS installation
   },
 };
 
