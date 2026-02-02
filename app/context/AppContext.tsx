@@ -56,31 +56,46 @@ export function AppWrapper({ children }: { children: React.ReactNode }) {
 
   const addTransaction = async (newTx: any) => {
     if (!user) return;
-    const { data, error } = await supabase
+    const { data: txData, error: txError } = await supabase
       .from('transactions')
       .insert([{ ...newTx, user_id: user.id }])
       .select();
 
-    if (!error && data) {
-      setTransactions((prev) => [data[0], ...prev]);
+    if (!txError && txData) {
+      const transaction = txData[0];
+      setTransactions((prev) => [transaction, ...prev]);
+
+      const walletToUpdate = wallets.find(w => w.id === transaction.wallet_id);
+      if (walletToUpdate) {
+        // Precise math to avoid floating point errors
+        const newBalance = Math.round((Number(walletToUpdate.balance) + Number(transaction.amount)) * 100) / 100;
+
+        await supabase.from('wallets').update({ balance: newBalance }).eq('id', transaction.wallet_id);
+
+        setWallets(prev => prev.map(w => 
+          w.id === transaction.wallet_id ? { ...w, balance: newBalance } : w
+        ));
+      }
     }
   };
 
-  // --- DELETE TRANSACTION ---
   const deleteTransaction = async (id: string) => {
     if (!user) return;
+    const txToDelete = transactions.find(t => t.id === id);
+    if (!txToDelete) return;
 
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id);
+    const { error } = await supabase.from('transactions').delete().eq('id', id);
 
     if (!error) {
       setTransactions((prev) => prev.filter((tx) => tx.id !== id));
-    } else {
-      console.error("Error deleting transaction:", error.message);
-      alert("Could not delete transaction.");
+      const walletToUpdate = wallets.find(w => w.id === txToDelete.wallet_id);
+      if (walletToUpdate) {
+        const newBalance = Math.round((Number(walletToUpdate.balance) - Number(txToDelete.amount)) * 100) / 100;
+        await supabase.from('wallets').update({ balance: newBalance }).eq('id', txToDelete.wallet_id);
+        setWallets(prev => prev.map(w => 
+          w.id === txToDelete.wallet_id ? { ...w, balance: newBalance } : w
+        ));
+      }
     }
   };
 
@@ -90,51 +105,17 @@ export function AppWrapper({ children }: { children: React.ReactNode }) {
       .from('wallets')
       .insert([{ ...newWallet, user_id: user.id }])
       .select();
-
-    if (!error && data) {
-      setWallets((prev) => [...prev, data[0]]);
-    }
-  };
-
-  const updateBudget = async (category: string, limit: number) => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('budgets')
-      .upsert(
-        { category, limit_amount: limit, user_id: user.id }, 
-        { onConflict: 'user_id,category' }
-      )
-      .select();
-
-    if (!error && data) {
-      setBudgets(prev => {
-        const filtered = prev.filter(b => b.category !== category);
-        return [...filtered, data[0]];
-      });
-    }
+    if (!error && data) setWallets((prev) => [...prev, data[0]]);
   };
 
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    setTransactions([]);
-    setWallets([]);
-    setBudgets([]);
   };
 
   return (
     <AppContext.Provider value={{ 
-      user, 
-      setUser, 
-      transactions, 
-      wallets, 
-      budgets,
-      addTransaction, 
-      deleteTransaction, // Successfully added to the export
-      addWallet, 
-      updateBudget, 
-      logout, 
-      loading 
+      user, transactions, wallets, budgets, addTransaction, deleteTransaction, addWallet, logout, loading 
     }}>
       {children}
     </AppContext.Provider>

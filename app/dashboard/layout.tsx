@@ -1,20 +1,23 @@
 import '@/app/globals.css';
-import { Inter } from 'next/font/google';
+import { Plus_Jakarta_Sans } from 'next/font/google'; // Changed to match your app's expectation
 import { AppWrapper } from '@/app/context/AppContext';
 
-const inter = Inter({ subsets: ['latin'] });
+// Using Plus Jakarta Sans to match the rest of your dashboard UI
+const jakarta = Plus_Jakarta_Sans({ 
+  subsets: ['latin'],
+  display: 'swap', 
+});
 
-// This is the Metadata object that changes the browser tab name
 export const metadata = {
   title: 'Expense Pro',
   description: 'Professional personal finance tracking and analysis',
-  manifest: '/manifest.json',
+  // REMOVED: manifest: '/manifest.json' 
+  // (This stops the 404 error until you actually create the file and icons)
   icons: {
-    icon: '/favicon.ico', // Make sure you have a favicon.ico in your public folder
+    icon: '/favicon.ico',
   },
 };
 
-// This handles how the app looks on mobile devices
 export const viewport = {
   themeColor: '#4f46e5',
   width: 'device-width',
@@ -28,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={jakarta.className}>
         <AppWrapper>
           {children}
         </AppWrapper>
